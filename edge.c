@@ -200,14 +200,30 @@ static int readConfFile(const char * filename, char * const linebuffer) {
         p = strchr(buffer, '\n');
         if (p) *p ='\0';
 
+        /* Verify buffer validity */
+        if (!buffer || strlen(buffer) == 0) {
+            continue;
+        }
+
         /* strip out heading spaces */
         p = buffer;
         while (*p == ' ') ++p;
-        if (p != buffer) memmove(buffer, p, strlen(p) + 1);
+        if (p != buffer) {
+            size_t len = strlen(p);
+            if (len < MAX_CONFFILE_LINE_LENGTH) {
+                memmove(buffer, p, len + 1);
+            } else {
+                traceEvent(TRACE_ERROR, "line too long");
+                continue;
+            }
+        }
 
         /* strip out trailing spaces */
-        while(strlen(buffer) && buffer[strlen(buffer)-1]==' ')
-        buffer[strlen(buffer)-1]= '\0';
+        size_t buf_len = strlen(buffer);
+        while(buf_len > 0 && buffer[buf_len-1] == ' ') {
+            buffer[buf_len-1] = '\0';
+            buf_len--;
+        }
 
         /* check for nested @file option */
         if (strchr(buffer, '@')) {
@@ -216,18 +232,18 @@ static int readConfFile(const char * filename, char * const linebuffer) {
             fclose(fd);
             return -1;
         }
-        if ((strlen(linebuffer) + strlen(buffer) + 2)< MAX_CMDLINE_BUFFER_LENGTH) {
-            size_t line_len = strlen(linebuffer);
-            size_t buf_len = strlen(buffer);
+        /* Calculate the current length and remaining space */
+        size_t line_len = strlen(linebuffer);
+        size_t line_buffer_len = strlen(buffer);
 
+        /* Check if there is enough space */
+        if (line_len + buf_len + 2 <= MAX_CMDLINE_BUFFER_LENGTH) {
             linebuffer[line_len] = ' ';
-            linebuffer[line_len + 1] = '\0';
-
             memcpy(linebuffer + line_len + 1, buffer, buf_len + 1);
         } else {
             traceEvent(TRACE_ERROR, "too many arguments");
             free(buffer);
-            fclose(fd);
+           fclose(fd);
             return -1;
         }
     }
