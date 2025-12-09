@@ -30,12 +30,6 @@ The default is no set IPv6. The default prefix for an address is /64 but this ca
 by appending a prefix to the address.
 .B -A fdf0:dead:beef::102/48
 .TP
-\-b
-cause edge to perform hostname resolution for the supernode address each time
-the supernode is periodically contacted. This can cause reliability problems
-because all packet processing stops while the supernode address is resolved
-which might take 15 seconds.
-.TP
 \-c <community>
 sets the n2n community name. All edges within the same community appear on the
 same LAN (layer 2 network segment). Community name is 16 bytes in length. A name

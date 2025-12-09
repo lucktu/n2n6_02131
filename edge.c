@@ -665,7 +665,7 @@ static void help() {
 #ifndef _WIN32
         "[-M <mtu>] "
 #endif
-        "[-r|-R <route>] [-E] [-v] [-t <mgmt port>] [-b] [-h]\n\n");
+        "[-r|-R <route>] [-E] [-v] [-t <mgmt port>] [-h]\n\n");
 #ifdef N2N_CAN_NAME_IFACE
     printf("-d <tun device>          | tun device name\n");
 #endif
@@ -678,8 +678,6 @@ static void help() {
     printf("-K <key file>            | Specify a key schedule file to load. Not with -k.\n");
     printf("-l <supernode host:port> | Supernode IP:port\n");
     printf("[-4|-6]                  | Resolve supernode DNS name as IPv4 or IPv6 (default is unspecified)\n");
-    printf("-b                       | Periodically resolve supernode IP\n");
-    printf("                         : (when supernodes are running on dynamic IPs)\n");
     printf("-p <local port>          | Fixed local UDP port.\n");
 #ifndef _WIN32
     printf("-u <UID>                 | User ID (numeric) to use when privileges are dropped.\n");
@@ -2635,13 +2633,6 @@ int main(int argc, char* argv[])
             break;
         }
 #endif
-
-        case 'b':
-        {
-            eee.re_resolve_supernode_ip = 1;
-            break;
-        }
-
         case 'p':
         {
             local_port = atoi(optarg);
@@ -2717,6 +2708,34 @@ int main(int argc, char* argv[])
 
     while (supernode2addr( &(eee.supernode), eee.sn_af, eee.sn_ip_array[eee.sn_idx] ) != 0) {
         // could not resolve IP, sleep and try again
+
+        if (supernode2addr( &(eee.supernode), eee.sn_af, eee.sn_ip_array[eee.sn_idx] ) == 0)
+        {
+            /* Check if it is a domain name (not an IP address) */
+            char *supernode_host = eee.sn_ip_array[eee.sn_idx];
+            int is_domain = 0;
+
+            /* Attempt to resolve to IPv4 */
+            struct in_addr ipv4_addr;
+            if (inet_pton(AF_INET, supernode_host, &ipv4_addr) != 1)
+            {
+                /* Attempt to resolve to IPv6 */
+                struct in6_addr ipv6_addr;
+                if (inet_pton(AF_INET6, supernode_host, &ipv6_addr) != 1)
+                {
+                    /* It's not an IP address, it's a domain name */
+                    is_domain = 1;
+                }
+            }
+
+            /* If it's a domain name, automatically enable periodic DNS resolution */
+            if (is_domain)
+            {
+                eee.re_resolve_supernode_ip = 1;
+                traceEvent(TRACE_INFO, "Supernode address '%s' is a domain name, enabling periodic resolution", supernode_host);
+            }
+        }
+
 #ifdef _WIN32
         Sleep(5000);
 #else
