@@ -3151,6 +3151,21 @@ static int run_loop(n2n_edge_t * eee )
         rc = select(max_sock+1, &socket_mask, NULL, NULL, &wait_time);
         nowTime=time(NULL);
 
+        /* Handle signal interruption */
+        if (rc < 0) {
+#ifdef _WIN32
+            if (WSAGetLastError() == WSAEINTR) {
+                continue;
+            }
+#else
+            if (errno == EINTR) {
+                continue;
+            }
+#endif
+            traceEvent(TRACE_ERROR, "select() failed: %s", strerror(errno));
+            continue;
+        }
+
         /* Make sure ciphers are updated before the packet is treated. */
         if ( ( nowTime - lastTransop ) > TRANSOP_TICK_INTERVAL )
         {
