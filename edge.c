@@ -644,7 +644,7 @@ static void help() {
     printf("-d <tun device>          | tun device name (optional)\n");
 #endif
     printf("-a <mode:IPv4/prefixlen> | Set interface IPv4 address. For DHCP use '-r -a dhcp:0.0.0.0/0'\n");
-    printf("                         : If not specified, auto-assigns 10.64.0.x from supernode\n");  
+    printf("                         : If not specified, auto-assigns 10.64.0.x from supernode\n");
     printf("-A <IPv6>/<prefixlen>    | Set interface IPv6 address, only supported if IPv4 set to 'static'\n");
     printf("-c <community>           | n2n community name the edge belongs to.\n");
     printf("-B <mode>                | Encryption:");
@@ -984,11 +984,14 @@ void set_peer_operational( n2n_edge_t * eee,
             eee->pending_peers = scan->next;
         }
 
+        struct peer_info *next_in_known = eee->known_peers;
+
         /* Add scan to known_peers. */
         scan->next = eee->known_peers;
         eee->known_peers = scan;
 
         scan->sock = *peer;
+        scan->last_seen = time(NULL);
 
         traceEvent( TRACE_DEBUG, "=== new peer %s -> %s",
                     macaddr_str( mac_buf, scan->mac_addr),
@@ -1000,7 +1003,6 @@ void set_peer_operational( n2n_edge_t * eee,
         traceEvent( TRACE_INFO, "Operational peers list size=%u",
                     (unsigned int)peer_list_size( eee->known_peers ) );
 
-        scan->last_seen = time(NULL);
     } else {
         traceEvent( TRACE_DEBUG, "Failed to find sender in pending_peers." );
     }
@@ -1102,6 +1104,11 @@ static void update_peer_address(n2n_edge_t * eee,
                         sock_to_cstr(sockbuf1, &(scan->sock)),
                         sock_to_cstr(sockbuf2, peer) );
 
+            n2n_mac_t saved_mac;
+            n2n_sock_t saved_peer;
+            memcpy(saved_mac, mac, N2N_MAC_SIZE);
+            saved_peer = *peer;
+
             /* The peer has changed public socket. It can no longer be assumed to be reachable. */
             /* Remove the peer. */
             if ( NULL == prev )
@@ -1115,7 +1122,7 @@ static void update_peer_address(n2n_edge_t * eee,
             }
             free(scan);
 
-            try_send_register( eee, from_supernode, mac, peer );
+            try_send_register( eee, from_supernode, saved_mac, &saved_peer );
         }
         else
         {

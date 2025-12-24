@@ -595,6 +595,18 @@ static int process_mgmt( n2n_sn_t * sss,
             if (memcmp(communities[i], list->community_name, sizeof(n2n_community_t)) == 0) {
                 /* Add edge to existing community */
                 struct peer_info *new_edge = malloc(sizeof(struct peer_info));
+                if (!new_edge) {
+                    for (int j = 0; j < num_communities; j++) {
+                        struct peer_info *temp = community_edges[j];
+                        while (temp) {
+                            struct peer_info *next = temp->next;
+                            free(temp);
+                            temp = next;
+                        }
+                    }
+                    traceEvent(TRACE_ERROR, "malloc failed for new_edge in process_mgmt");
+                    return -1;
+                }
                 memcpy(new_edge, list, sizeof(struct peer_info));
                 new_edge->next = community_edges[i];
                 community_edges[i] = new_edge;
@@ -608,6 +620,18 @@ static int process_mgmt( n2n_sn_t * sss,
             /* New community */
             memcpy(communities[num_communities], list->community_name, sizeof(n2n_community_t));
             community_edges[num_communities] = malloc(sizeof(struct peer_info));
+            if (!community_edges[num_communities]) {
+                for (int j = 0; j < num_communities; j++) {
+                    struct peer_info *temp = community_edges[j];
+                    while (temp) {
+                        struct peer_info *next = temp->next;
+                        free(temp);
+                        temp = next;
+                    }
+                }
+                traceEvent(TRACE_ERROR, "malloc failed for community_edges[%d] in process_mgmt", num_communities);
+                return -1;
+            }
             memcpy(community_edges[num_communities], list, sizeof(struct peer_info));
             community_edges[num_communities]->next = NULL;
             community_counts[num_communities] = 1;
@@ -1323,8 +1347,10 @@ static int run_loop( n2n_sn_t * sss )
                                (struct sockaddr *)&mgmt_sender_sock, &mgmt_sender_len);
 
                 if (bread > 0) {
-                    process_mgmt(sss, (struct sockaddr*)&mgmt_sender_sock,
-                               mgmt_sender_len, pktbuf, bread, now);
+                    if (process_mgmt(sss, (struct sockaddr*)&mgmt_sender_sock,
+                                    mgmt_sender_len, pktbuf, bread, now) < 0) {
+                        traceEvent(TRACE_ERROR, "process_mgmt failed");
+                    }
                 }
             }
         }
