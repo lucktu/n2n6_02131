@@ -791,7 +791,10 @@ static void send_register_super( n2n_edge_t * eee,
 
     if (default_ip_assignment) {
         reg.request_ip = 1;
-        reg.requested_ip = htonl(0x0a400001 + assigned_ip_suffix); /* 10.64.0.x */
+        reg.requested_ip = htonl(0x0a400001 + assigned_ip_suffix);
+    } else if (eee->device.ip_addr != 0) {
+        reg.request_ip = 1;
+        reg.requested_ip = eee->device.ip_addr;
     } else {
         reg.request_ip = 0;
         reg.requested_ip = 0;

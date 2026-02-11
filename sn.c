@@ -372,14 +372,20 @@ static int update_edge( n2n_sn_t * sss,
         scan = (struct peer_info*)calloc(1, sizeof(struct peer_info)); /* deallocated in purge_expired_registrations */
 
         if (request_ip) {
-            uint32_t assigned_ip = next_assigned_ip++;
-            traceEvent(TRACE_INFO, "Auto-assigning IP 10.64.0.%u to edge %s",
-                       assigned_ip & 0xFF, macaddr_str(mac_buf, edgeMac));
-            scan->assigned_ip = assigned_ip;
-
-            if ((assigned_ip & 0xFF) > 254) {
-                next_assigned_ip = 0x0a400002;
+            uint32_t assigned_ip;
+            if (requested_ip != 0) {
+                assigned_ip = ntohl(requested_ip);
+                traceEvent(TRACE_INFO, "Using requested IP 10.64.0.%u for edge %s",
+                           assigned_ip & 0xFF, macaddr_str(mac_buf, edgeMac));
+            } else {
+                assigned_ip = next_assigned_ip++;
+                traceEvent(TRACE_INFO, "Auto-assigning IP 10.64.0.%u to edge %s",
+                           assigned_ip & 0xFF, macaddr_str(mac_buf, edgeMac));
+                if ((assigned_ip & 0xFF) > 254) {
+                    next_assigned_ip = 0x0a400002;
+                }
             }
+            scan->assigned_ip = assigned_ip;
         }
 
         memcpy(scan->community_name, community, sizeof(n2n_community_t) );
@@ -578,9 +584,9 @@ static int process_mgmt( n2n_sn_t * sss,
 
     /* Send header */
     ressize = snprintf(resbuf, N2N_SN_PKTBUF_SIZE,
-                      "  id  mac                wan_ip                                            version    os\n");
+                      "  id  mac                virt_ip          wan_ip                                           ver     os\n");
     ressize += snprintf(resbuf + ressize, N2N_SN_PKTBUF_SIZE - ressize,
-                       "---n2n6-------------------------------------------------------------------------------n2n6---\n");
+                       "---n2n6--------------------------------------------------------------------------------------------n2n6---\n");
 
     r = sendto(sss->mgmt_sock, resbuf, ressize, 0,
                sender_sock, sender_sock_len);
@@ -691,10 +697,14 @@ static int process_mgmt( n2n_sn_t * sss,
 
             displayed_edges++;
 
+            struct in_addr a;
+            a.s_addr = htonl(edge->assigned_ip);
+            const char *ip_str = (edge->assigned_ip != 0) ? inet_ntoa(a) : "-";
             ressize = snprintf(resbuf, N2N_SN_PKTBUF_SIZE,
-                              "  %2u  %-17s  %-48s  %-8s  %s\n",
+                              "  %2u  %-17s  %-15s  %-47s  %-6s  %s\n",
                               id++,
                               macaddr_str(mac_buf, edge->mac_addr),
+                              ip_str,
                               sock_to_cstr(sock_buf, &edge->sock),
                               version,
                               os_name);
@@ -713,26 +723,20 @@ static int process_mgmt( n2n_sn_t * sss,
 
     /* Send footer and statistics */
     ressize = snprintf(resbuf, N2N_SN_PKTBUF_SIZE,
-                      "---n2n6-------------------------------------------------------------------------------n2n6---\n");
+                      "---n2n6--------------------------------------------------------------------------------------------n2n6---\n");
 
     time_t uptime = now - sss->start_time;
     int days = uptime / 86400;
     int hours = (uptime % 86400) / 3600;
 
     ressize += snprintf(resbuf + ressize, N2N_SN_PKTBUF_SIZE - ressize,
-                       "uptime %dd_%dh | edges %u | cmnts %u | reg_nak %u | errs %u | last_reg %lus ago\n",
+                       "uptime %dd_%dh | edges %u | cmnts %u | reg_nak %u | errs %u | last_reg %lus ago | last_fwd %lus ago\n",
                        days, hours,
                        num_edges,
                        num_communities,
                        (unsigned int)sss->stats.reg_super_nak,
                        (unsigned int)sss->stats.errors,
-                       (long unsigned int)(now - sss->stats.last_reg_super));
-
-    ressize += snprintf(resbuf + ressize, N2N_SN_PKTBUF_SIZE - ressize,
-                       "broadcast %u | reg_sup %u | fwd %u | last_fwd %lus ago\n",
-                       (unsigned int) sss->stats.broadcast,
-                       (unsigned int)sss->stats.reg_super,
-                       (unsigned int) sss->stats.fwd,
+                       (long unsigned int)(now - sss->stats.last_reg_super),
                        (long unsigned int)(now - sss->stats.last_fwd));
 
     const char* ip_support;
@@ -746,8 +750,16 @@ static int process_mgmt( n2n_sn_t * sss,
         ip_support = "None";
     }
 
+    char time_buf[32];
+    strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M:%S", localtime(&now));
+
     ressize += snprintf(resbuf + ressize, N2N_SN_PKTBUF_SIZE - ressize,
-                       "ip_support: %s\n", ip_support);
+                       "broadcast %u | reg_sup %u | fwd %u | ip_support: %s | time: %s\n",
+                       (unsigned int) sss->stats.broadcast,
+                       (unsigned int)sss->stats.reg_super,
+                       (unsigned int) sss->stats.fwd,
+                       ip_support,
+                       time_buf);
 
     r = sendto(sss->mgmt_sock, resbuf, ressize, 0,
               sender_sock, sender_sock_len);
