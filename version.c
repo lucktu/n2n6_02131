@@ -35,5 +35,6 @@ void print_n2n_version() {
     );
 #endif // N2N_HAVE_AES
     printf("Copyright 2007-16 - http://www.ntop.org\n"
-           "Copyright 2017-20 - https://github.com/mxre/n2n\n\n");
+           "Copyright 2017-24 - https://github.com/mxre/n2n\n"
+           "Copyright 2025-25 - https://github.com/lucktu/n2n6\n");
 }

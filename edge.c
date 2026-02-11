@@ -1231,6 +1231,12 @@ static void update_supernode_reg( n2n_edge_t * eee, time_t nowTime )
         --(eee->sup_attempts);
     }
 
+    if (0 == eee->sup_attempts) {
+        traceEvent(TRACE_INFO, "Supernode registration attempts exhausted; forcing DNS re-resolution");
+        supernode2addr(&(eee->supernode), eee->sn_af, eee->sn_ip_array[eee->sn_idx]);
+        eee->sup_attempts = N2N_EDGE_SUP_ATTEMPTS;
+    }
+
     if(eee->re_resolve_supernode_ip || (eee->sn_num > 1) )
     {
         supernode2addr(&(eee->supernode), eee->sn_af, eee->sn_ip_array[eee->sn_idx] );
@@ -1765,7 +1771,7 @@ static void readFromMgmtSocket(n2n_edge_t *eee, int *keep_running) {
     msg_len = snprintf((char*)udp_buf, N2N_PKT_BUF_SIZE,
                        "  id    mac                wan_ip                                            version   os\n");
     msg_len += snprintf((char*) (udp_buf + msg_len), (N2N_PKT_BUF_SIZE - msg_len),
-                        "---v2.3-------------------------------------------------------------------------------v2.3---\n");
+                        "---n2n6-------------------------------------------------------------------------------n2n6---\n");
     sendto(eee->mgmt_sock, udp_buf, msg_len, 0/*flags*/,
            (struct sockaddr*) &sender_sock, i);
 
@@ -1847,7 +1853,7 @@ static void readFromMgmtSocket(n2n_edge_t *eee, int *keep_running) {
 
     /* Send statistics */
     msg_len = snprintf((char*)udp_buf, N2N_PKT_BUF_SIZE,
-                       "---v2.3-------------------------------------------------------------------------------v2.3---\n");
+                       "---n2n6-------------------------------------------------------------------------------n2n6---\n");
     sendto(eee->mgmt_sock, udp_buf, msg_len, 0/*flags*/,
            (struct sockaddr*) &sender_sock, i);
 
